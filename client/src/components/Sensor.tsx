@@ -9,7 +9,7 @@ interface IProps {
 
 const Sensor: FC<IProps> = ({ sensorData, connect, disconnect }) => {
   return (
-    <div className='flex gap-x-2'>
+    <div className='flex flex-col justify-between h-full p-4 border gap-x-2'>
       <span className='w-[150px]'>{sensorData.name}</span>
       {sensorData.value && (
         <span className='w-[150px]'>

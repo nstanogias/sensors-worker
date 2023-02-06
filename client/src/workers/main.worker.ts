@@ -1,3 +1,5 @@
+import { MessageType } from '../types';
+
 let socketInstance: WebSocket | null = null;
 
 const createSocketInstance = () => {
@@ -10,30 +12,30 @@ const socketManagement = () => {
   if (socketInstance) {
     socketInstance.onopen = (e: Event) => {
       console.log('[open] Connection established');
-      postMessage('[SOCKET] Connection established');
-      postMessage({ disableStartButton: true });
+      postMessage({ type: MessageType.LOG, payload: '[SOCKET] Connection established' });
+      postMessage({ type: MessageType.BUTTON, payload: true });
     };
 
     socketInstance.onmessage = (event: MessageEvent) => {
       console.log(`[message] Data received from server: ${event.data}`);
-      postMessage(event.data);
+      postMessage({ type: MessageType.SENSOR, payload: JSON.parse(event.data) });
     };
 
     socketInstance.onclose = (event: CloseEvent) => {
       if (event.wasClean) {
         console.log(`[close] Connection closed cleanly, code=${event.code}`);
-        postMessage(`[SOCKET] Connection closed cleanly, code=${event.code}`);
+        postMessage({ type: MessageType.LOG, payload: `[SOCKET] Connection closed cleanly, code=${event.code}` });
       } else {
         // e.g. server process killed or network down
         console.log('[close] Connection died');
-        postMessage('[SOCKET] Connection died');
+        postMessage({ type: MessageType.LOG, payload: '[SOCKET] Connection died' });
       }
-      postMessage({ disableStartButton: false });
+      postMessage({ type: MessageType.BUTTON, payload: false });
     };
 
     socketInstance.onerror = (error: Event) => {
       console.log(`[error] ${error}`);
-      postMessage(`[SOCKET] ${error}`);
+      postMessage({ type: MessageType.LOG, payload: `[SOCKET] ${error}` });
       socketInstance?.close();
     };
   }
@@ -43,7 +45,7 @@ const socketManagement = () => {
 // eslint-disable-next-line no-restricted-globals
 self.onmessage = (e: MessageEvent) => {
   const workerData = e.data;
-  postMessage('[WORKER] Web worker received message');
+  postMessage({ type: MessageType.LOG, payload: '[WORKER] Web worker received message' });
   switch (workerData.command) {
     case 'initSocketConnection':
       socketInstance = createSocketInstance();

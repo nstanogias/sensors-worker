@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react';
 import Logger from '../components/Logger';
 import Sensor from '../components/Sensor';
 import Toggle from '../components/Toggle';
-import { ISensorData } from '../types';
+import { ISensorData, MessageType, workerMessage } from '../types';
 
 const Homepage = () => {
   const [worker, setWorker] = useState<Worker | null>(null);
-  const [sensors, setSensors] = useState<ISensorData[]>([]);
+  const [sensors, setSensors] = useState<{ [key: string]: ISensorData }>({});
   const [log, setLog] = useState<string[]>([]);
   const [buttonState, setButtonState] = useState<boolean>(false);
   const [showOnlyConnected, setShowOnlyConnected] = useState<boolean>(false);
+
+  const sensorsToShow = showOnlyConnected
+    ? Object.values(sensors).filter((sen) => sen.connected)
+    : Object.values(sensors);
 
   const hanldeStartConnection = () => {
     worker?.postMessage({
@@ -21,7 +25,7 @@ const Homepage = () => {
     worker?.postMessage({
       command: 'stopSocketConnection',
     });
-    setSensors([]);
+    setSensors({});
   };
 
   const handleConnectSensor = (id: string) => {
@@ -56,31 +60,20 @@ const Homepage = () => {
   useEffect(() => {
     if (worker) {
       worker.onmessage = (e) => {
-        // console.log(JSON.parse(e.data));
-        if (typeof e.data === 'string') {
-          if (e.data.includes('[')) {
-            setLog((prevLogs) => [...prevLogs, e.data]);
-          } else {
+        const data = e.data as workerMessage;
+        const { type, payload } = data;
+        switch (type) {
+          case MessageType.LOG:
+            setLog((prevLogs) => [...prevLogs, payload]);
+            break;
+          case MessageType.BUTTON:
+            setButtonState(payload);
+            break;
+          case MessageType.SENSOR:
             setSensors((prevSensors) => {
-              const found = prevSensors.find((sen) => sen.id === JSON.parse(e.data)['id']);
-              if (!found) {
-                return [...prevSensors, JSON.parse(e.data)];
-              } else {
-                return prevSensors.map((sen, i) => {
-                  if (sen.id === JSON.parse(e.data)['id']) {
-                    return { ...sen, value: JSON.parse(e.data)['value'], connected: JSON.parse(e.data)['connected'] };
-                  } else {
-                    // The rest haven't changed
-                    return sen;
-                  }
-                });
-              }
+              return { ...prevSensors, [payload.id]: payload };
             });
-          }
-        }
-
-        if (typeof e.data === 'object') {
-          setButtonState(e.data.disableStartButton);
+            break;
         }
       };
     }
@@ -90,23 +83,23 @@ const Homepage = () => {
     <div className='flex flex-col w-full'>
       <div className='mx-auto'>
         <p className='text-xl font-semibold'>Internet of Things (IoT) sensors</p>
-        <div className='flex gap-x-2 mt-4'>
+        <div className='flex mt-4 gap-x-2'>
           <button
-            className='text-white bg-green-500 p-2 rounded-md disabled:opacity-75 disabled:bg-gray-400'
+            className='p-2 text-white bg-green-500 rounded-md disabled:opacity-75 disabled:bg-gray-400'
             onClick={hanldeStartConnection}
             disabled={!worker || buttonState}
           >
             Start Connection
           </button>
           <button
-            className='text-white bg-red-500 p-2 rounded-md disabled:opacity-75 disabled:bg-gray-400'
+            className='p-2 text-white bg-red-500 rounded-md disabled:opacity-75 disabled:bg-gray-400'
             onClick={handleStopConnection}
             disabled={!buttonState}
           >
             Stop Connection
           </button>
         </div>
-        {sensors.length > 0 && (
+        {sensorsToShow.length > 0 && (
           <div className='mt-4'>
             <Toggle
               label='Show only connected'
@@ -116,30 +109,18 @@ const Homepage = () => {
           </div>
         )}
       </div>
-      {sensors.length > 0 && (
-        <ul className='list-disc mx-auto mt-6'>
-          {showOnlyConnected
-            ? sensors
-                .filter((sen) => sen.connected)
-                .map((sensor) => (
-                  <li key={sensor.id} className='mt-2'>
-                    <Sensor
-                      sensorData={sensor}
-                      connect={() => handleConnectSensor(sensor.id)}
-                      disconnect={() => handleDisconnectSensor(sensor.id)}
-                    />
-                  </li>
-                ))
-            : sensors.map((sensor) => (
-                <li key={sensor.id} className='mt-2'>
-                  <Sensor
-                    sensorData={sensor}
-                    connect={() => handleConnectSensor(sensor.id)}
-                    disconnect={() => handleDisconnectSensor(sensor.id)}
-                  />
-                </li>
-              ))}
-        </ul>
+      {sensorsToShow.length > 0 && (
+        <div className='grid grid-cols-2 gap-4 mx-auto mt-6 md:grid-cols-3'>
+          {sensorsToShow.map((sensor) => (
+            <div key={sensor.id} className='mt-2'>
+              <Sensor
+                sensorData={sensor}
+                connect={() => handleConnectSensor(sensor.id)}
+                disconnect={() => handleDisconnectSensor(sensor.id)}
+              />
+            </div>
+          ))}
+        </div>
       )}
       <Logger logs={log} />
     </div>
